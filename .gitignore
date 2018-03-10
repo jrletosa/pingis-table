@@ -1,0 +1,8 @@
+*.egg-info
+.idea/
+
+# login info
+contact_info.py
+
+# data test files
+*.pkl
