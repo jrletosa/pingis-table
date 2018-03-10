@@ -1,5 +1,6 @@
 *.egg-info
 .idea/
+*.pyc
 
 # login info
 contact_info.py
