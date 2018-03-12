@@ -46,7 +46,6 @@ def parse_matches(soup):
                 score_b=result.split('-')[1]
             )
             matches.append(match)
-            print match
 
     return matches
 
