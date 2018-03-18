@@ -52,3 +52,30 @@ class Match(object):
 
     def __hash__(self):
         return hash(self.__str__())
+
+class PlayerPosition(object):
+    def __init__(self,
+                 name,
+                 previous_pos,
+                 current_pos,
+                 points,
+                 diff,
+                 url):
+        self.name = name
+        self.previous_pos = previous_pos
+        self.current_pos = current_pos
+        self.points = points
+        self.diff = diff
+        self.source_url = url
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.__str__())

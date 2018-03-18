@@ -6,7 +6,7 @@ import pickle
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from models import Match, TeamStats
+from models import Match, TeamStats, PlayerPosition
 import contact_info
 
 STANDINGS_URL = 'https://www.profixio.com/fx/serieoppsett.php?t=SBTF_SERIE_AVD9006&k=LS9006&p=1'
@@ -81,6 +81,17 @@ def get_current_stats():
         'matches': matches,
     }
 
+def get_current_ranking():
+    infile = open('ranking.pkl', 'rb')
+    ranking = None
+    while True:
+        try:
+            ranking = pickle.load(infile)
+        except (EOFError, pickle.UnpicklingError):
+            break
+    infile.close()
+
+    return ranking
 
 def notify_changes(current_stats, latest_stats):
     matches_diff = set(current_stats['matches']).symmetric_difference(latest_stats['matches'])
@@ -128,6 +139,46 @@ def notify_changes(current_stats, latest_stats):
     server.sendmail(contact_info.SOURCE_ADDRESS, contact_info.DESTINATION_ADDRESS, msg.as_string())
     server.quit()
 
+def notify_ranking_changes(latest_ranking):
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(contact_info.SOURCE_ADDRESS, contact_info.SOURCE_PASSWORD)
+
+    msg_body = """
+        <html>
+          <head></head>
+          <body>
+          <p>
+            New ranking update:
+          </p>
+          <p>
+            Position: {} ({})
+          </p>
+          <p>
+            Points: {} ({})</br></br>
+          <p>
+            <a href="{}">See table</a>
+          </p>
+        </body>
+        </html>
+    """.format(
+        latest_ranking.current_pos,
+        latest_ranking.previous_pos,
+        latest_ranking.points,
+        latest_ranking.diff,
+        latest_ranking.source_url)
+
+
+    msg = MIMEMultipart('alternative')
+
+    msg['Subject'] = 'A new ranking update is available!'
+    msg['From'] = contact_info.SOURCE_ADDRESS
+    msg['To'] = contact_info.DESTINATION_ADDRESS
+
+    part = MIMEText(msg_body, 'html')
+    msg.attach(part)
+    server.sendmail(contact_info.SOURCE_ADDRESS, contact_info.DESTINATION_ADDRESS, msg.as_string())
+    server.quit()
 
 def save_latest_stats(stats):
     output = open('team-stats.pkl', 'wb')
@@ -138,6 +189,49 @@ def save_latest_stats(stats):
     for match in stats['matches']:
         pickle.dump(match, output, pickle.HIGHEST_PROTOCOL)
 
+def save_latest_ranking(ranking):
+    output = open('ranking.pkl', 'wb')
+    pickle.dump(ranking, output, pickle.HIGHEST_PROTOCOL)
+
+def parse_ranking(soup, url):
+    table = soup.find('table',{'class':'table table-condensed table-hover table-striped'})
+    rows = table.find_all('tr')
+    for row in rows[1:]:
+        cols = row.find_all('td')
+        cols = [e.text.strip() for e in cols]
+        name = cols[2]
+        if name == contact_info.PLAYER_NAME:
+            return PlayerPosition(
+                name=name,
+                previous_pos=cols[1][1:-1],
+                current_pos=cols[0],
+                points=cols[5],
+                diff=cols[6][1:-1],
+                url=url,
+            )
+    return None
+
+def get_latest_ranking():
+    url_prefix = 'https://www.profixio.com/fx/ranking_sbtf/ranking_sbtf_list.php?rid=256&from='
+    position = 1
+    ranking_url = url_prefix + str(position)
+    r  = requests.get(ranking_url)
+    data = r.text
+    soup = BeautifulSoup(data, "html.parser")
+
+    myself = parse_ranking(soup, ranking_url)
+    while myself is None:
+        if position > 7000:
+            break
+
+        position += 500
+        ranking_url = url_prefix + str(position)
+        r  = requests.get(ranking_url)
+        data = r.text
+        soup = BeautifulSoup(data, "html.parser")
+        myself = parse_ranking(soup, ranking_url)
+
+    return myself
 
 def main():
     print('Checking for new updates...')
@@ -147,8 +241,15 @@ def main():
     difference = set(current_stats['standings']).symmetric_difference(latest_stats['standings'])
     if len(difference) > 0:
         notify_changes(current_stats, latest_stats)
+        save_latest_stats(latest_stats)
 
-    save_latest_stats(latest_stats)
+    current_ranking = get_current_ranking()
+    latest_ranking = get_latest_ranking()
+    if current_ranking is None or \
+            latest_ranking != current_ranking:
+
+        notify_ranking_changes(latest_ranking)
+        save_latest_ranking(latest_ranking)
 
 
 if __name__ == "__main__":
