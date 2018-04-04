@@ -49,8 +49,9 @@ def parse_matches(soup):
 
     return matches
 
+
 def get_latest_stats():
-    r  = requests.get(STANDINGS_URL)
+    r = requests.get(STANDINGS_URL)
     data = r.text
     soup = BeautifulSoup(data, "html.parser")
 
@@ -96,7 +97,7 @@ def get_current_ranking():
 def notify_changes(current_stats, latest_stats):
     matches_diff = set(current_stats['matches']).symmetric_difference(latest_stats['matches'])
 
-    r  = requests.get(STANDINGS_URL)
+    r = requests.get(STANDINGS_URL)
     data = r.text
     soup = BeautifulSoup(data, "html.parser")
     table = str(soup.find('table', id='tabell_std'))
@@ -211,11 +212,22 @@ def parse_ranking(soup, url):
             )
     return None
 
+def get_rid():
+    url_base = 'https://www.profixio.com/fx/ranking_sbtf/ranking_sbtf_list.php'
+    r = requests.get(url_base)
+    data = r.text
+    soup = BeautifulSoup(data, "html.parser")
+    select = soup.find('select', {'name': 'rid'})
+    options = select.find_all('option')
+    return options[0]['value']
+
 def get_latest_ranking():
-    url_prefix = 'https://www.profixio.com/fx/ranking_sbtf/ranking_sbtf_list.php?rid=256&from='
+    url_prefix = 'https://www.profixio.com/fx/ranking_sbtf/ranking_sbtf_list.php?rid={rid}&from='.format(
+        rid=get_rid()
+    )
     position = 1
     ranking_url = url_prefix + str(position)
-    r  = requests.get(ranking_url)
+    r = requests.get(ranking_url)
     data = r.text
     soup = BeautifulSoup(data, "html.parser")
 
@@ -226,12 +238,13 @@ def get_latest_ranking():
 
         position += 500
         ranking_url = url_prefix + str(position)
-        r  = requests.get(ranking_url)
+        r = requests.get(ranking_url)
         data = r.text
         soup = BeautifulSoup(data, "html.parser")
         myself = parse_ranking(soup, ranking_url)
 
     return myself
+
 
 def main():
     print('Checking for new updates...')

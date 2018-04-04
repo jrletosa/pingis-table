@@ -53,6 +53,7 @@ class Match(object):
     def __hash__(self):
         return hash(self.__str__())
 
+
 class PlayerPosition(object):
     def __init__(self,
                  name,
